@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1f2937;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+        }
+
+        .status {
+            background: #111;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .photo-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .video-btn {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .close-btn {
+            background: #6b7280;
+            color: white;
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .video-container.active {
+            display: block;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #111;
+            -webkit-transform: scaleX(-1);
+            transform: scaleX(-1);
+        }
+
+        canvas {
+            display: none;
+        }
+
+        .info {
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #d1d5db;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Camera Test</h1>
+        
+        <div class="status" id="status">Ready to test camera...</div>
+
+        <div class="controls">
+            <button class="photo-btn" onclick="startPhotoCamera()">📸 Test Photo Camera</button>
+            <button class="video-btn" onclick="startVideoCamera()">🎥 Test Video Camera</button>
+        </div>
+
+        <div class="video-container" id="videoContainer">
+            <video id="testVideo" autoplay muted playsinline></video>
+            <canvas id="testCanvas"></canvas>
+            <div class="controls" style="margin: 10px 0 0 0;">
+                <button class="photo-btn" onclick="captureTestPhoto()" id="captureBtn">Capture Photo</button>
+                <button class="video-btn" onclick="startTestRecording()" id="recordBtn" style="display: none;">Start Recording</button>
+                <button class="close-btn" onclick="closeCamera()">Close Camera</button>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>Instructions:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Click "Test Photo Camera" to see live camera feed</li>
+                <li>Allow camera permission when prompted</li>
+                <li>Click "Capture Photo" to take a picture</li>
+                <li>Or click "Test Video Camera" to record video</li>
+            </ul>
+            <strong>Troubleshooting:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Check browser console (F12) for error messages</li>
+                <li>Ensure you allowed camera permission</li>
+                <li>Try using HTTPS or localhost</li>
+                <li>Refresh the page and try again</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const videoEl = document.getElementById('testVideo');
+        const canvasEl = document.getElementById('testCanvas');
+        const videoContainerEl = document.getElementById('videoContainer');
+        const captureBtn = document.getElementById('captureBtn');
+        const recordBtn = document.getElementById('recordBtn');
+
+        let stream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+
+        function updateStatus(message) {
+            console.log(message);
+            statusEl.textContent = message;
+        }
+
+        async function startPhotoCamera() {
+            try {
+                updateStatus('Requesting camera permission...');
+                
+                const constraints = {
+                    video: {
+                        facingMode: "environment",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                updateStatus('✓ Camera stream obtained successfully');
+
+                videoEl.srcObject = stream;
+                
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            updateStatus('✓ Video is playing - Camera working!');
+                            console.log("Video dimensions:", videoEl.videoWidth, "x", videoEl.videoHeight);
+                        })
+                        .catch(err => {
+                            updateStatus('⚠ Video play error: ' + err.message);
+                            console.error("Play error:", err);
+                        });
+                }
+
+                videoContainerEl.classList.add('active');
+                captureBtn.style.display = 'inline-flex';
+                recordBtn.style.display = 'none';
+
+            } catch (err) {
+                updateStatus('✗ Camera error: ' + err.message);
+                console.error("Full error:", err);
+            }
+        }
+
+        async function startVideoCamera() {
+            try {
+                updateStatus('Requesting camera and microphone...');
+                
+                const constraints = {
+                    video: {
+                        facingMode: "environment",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: true
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                updateStatus('✓ Camera stream obtained successfully');
+
+                videoEl.srcObject = stream;
+                
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            updateStatus('✓ Video is playing - Camera working!');
+                        })
+                        .catch(err => {
+                            updateStatus('⚠ Video play error: ' + err.message);
+                        });
+                }
+
+                videoContainerEl.classList.add('active');
+                captureBtn.style.display = 'none';
+                recordBtn.style.display = 'inline-flex';
+
+            } catch (err) {
+                updateStatus('✗ Camera error: ' + err.message);
+                console.error("Full error:", err);
+            }
+        }
+
+        function captureTestPhoto() {
+            if (!stream) {
+                updateStatus('✗ No camera stream available');
+                return;
+            }
+
+            canvasEl.width = videoEl.videoWidth;
+            canvasEl.height = videoEl.videoHeight;
+            const ctx = canvasEl.getContext('2d');
+            
+            ctx.translate(canvasEl.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(videoEl, 0, 0);
+
+            canvasEl.toBlob(blob => {
+                updateStatus('✓ Photo captured! (' + (blob.size / 1024).toFixed(2) + ' KB)');
+                const url = URL.createObjectURL(blob);
+                console.log('Photo URL:', url);
+            }, 'image/jpeg', 0.95);
+        }
+
+        function startTestRecording() {
+            if (!stream) {
+                updateStatus('✗ No camera stream available');
+                return;
+            }
+
+            recordedChunks = [];
+            let options = {};
+            
+            const supportedTypes = [
+                "video/webm;codecs=vp9",
+                "video/webm;codecs=vp8",
+                "video/webm",
+                "video/mp4"
+            ];
+            
+            for (let type of supportedTypes) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    options.mimeType = type;
+                    updateStatus('✓ Using codec: ' + type);
+                    break;
+                }
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: options.mimeType });
+                    updateStatus('✓ Video recorded! (' + (blob.size / 1024 / 1024).toFixed(2) + ' MB)');
+                    console.log('Video URL:', URL.createObjectURL(blob));
+                };
+
+                mediaRecorder.start();
+                updateStatus('🔴 Recording started... (10 seconds max for test)');
+                recordBtn.textContent = '⏹ Stop Recording';
+                recordBtn.onclick = stopTestRecording;
+
+                setTimeout(() => {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        stopTestRecording();
+                    }
+                }, 10000);
+
+            } catch (err) {
+                updateStatus('✗ Recording error: ' + err.message);
+                console.error("Recorder error:", err);
+            }
+        }
+
+        function stopTestRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recordBtn.textContent = '🎥 Start Recording';
+                recordBtn.onclick = startTestRecording;
+            }
+        }
+
+        function closeCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            videoContainerEl.classList.remove('active');
+            updateStatus('Camera closed');
+        }
+
+        // Check browser support on load
+        window.addEventListener('load', () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                updateStatus('✗ getUserMedia not supported in this browser');
+            } else {
+                updateStatus('✓ Browser supports camera API');
+            }
+        });
+    </script>
+</body>
+</html>
